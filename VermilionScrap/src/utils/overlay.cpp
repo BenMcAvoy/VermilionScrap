@@ -42,6 +42,9 @@ namespace {
             io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
             io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
             io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+            
+            io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\verdana.ttf", 14.0f);
+            io.Fonts->Build();
            
             ImGui_ImplDX11_Init(
                 reinterpret_cast<ID3D11Device*>(RenderData.pDevice),
