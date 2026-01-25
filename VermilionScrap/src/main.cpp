@@ -3,88 +3,57 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-#include <format>
+#include "utils/overlay.h"
 
-#include <src/utils/sig.h>
+#include <imgui.h>
 
-#include <dxgi.h>
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 namespace {
-	typedef HRESULT(__stdcall* DXGIPresent_T)(IDXGISwapChain* pSwapChain, UINT syncInterval, UINT flags);
-	DXGIPresent_T OriginalPresent = nullptr;
-	LONG_PTR OriginalWndProc = 0;
-
 	auto UninjectEvent = INVALID_HANDLE_VALUE;
-	std::atomic<bool> FrameInFlight = false;
+	auto ShowMenu = false;
 	
-	// Present hook
-	HRESULT __stdcall HookedPresent(IDXGISwapChain* pSwapChain, const UINT syncInterval, const UINT flags) {
-		FrameInFlight.store(true, std::memory_order_release);
-		OutputDebugStringA("[VermilionScrap] DXGI Present called!\n");
-		const auto hr = OriginalPresent(pSwapChain, syncInterval, flags);
-		FrameInFlight.store(false, std::memory_order_release);
-		return hr;
+	void Render(const Vermilion::RenderData& renderData) {
+		// TODO: Watermark
+		
+		if (!ShowMenu)
+			return;
+		
+		ImGui::Begin("Hello!");
+		ImGui::Text("Press F10 to uninject.");
+		ImGui::End();
 	}
-	
-	// WndProc hook
-	LRESULT CALLBACK HookedWndProc(const HWND hWnd, const UINT uMsg, const WPARAM wParam, const LPARAM lParam) {
-		if (uMsg == WM_KEYDOWN) {
-			if (wParam == VK_END) {
-				SetEvent(UninjectEvent);
-			}
+    
+	HRESULT WndProc(const HWND hWnd, const UINT uMsg, const WPARAM wParam, LPARAM lParam) {
+		if ((uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN) && wParam == VK_F10) {
+			SetEvent(UninjectEvent);
+			return 1;
 		}
 		
-		return CallWindowProcW(
-			reinterpret_cast<WNDPROC>(OriginalWndProc),
-			hWnd,
-			uMsg,
-			wParam,
-			lParam
-		);
-	}
-	
-	void SetPresent(const DXGIPresent_T pNewPresent) {
-		static Vermilion::SigScanner scanner("GameOverlayRenderer64.dll");
-		static auto render = scanner.Scan("48 8B 05 ? ? ? ? 44 8B C5 8B D6");
+		if (uMsg == WM_KEYDOWN && wParam == VK_INSERT) {
+			ShowMenu = !ShowMenu;
+			return 1;
+		}
+		
+		if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam) || ShowMenu)
+			return 1;
 
-		const std::int32_t displacement = *reinterpret_cast<std::int32_t*>(render + 3);
-		auto nextInstr = reinterpret_cast<std::uint8_t*>(render + 7);
-		const std::uintptr_t pPresent = reinterpret_cast<std::uintptr_t>(nextInstr + displacement);
-		
-		OriginalPresent = *reinterpret_cast<DXGIPresent_T*>(pPresent);
-		*reinterpret_cast<DXGIPresent_T*>(pPresent) = pNewPresent;
+		return 0;
 	}
-	
-	void SetWndProc(const WNDPROC pNewWndProc) {
-		static HWND hWnd = FindWindowA("CONTRAPTION_WINDOWS_CLASS", nullptr);
-		OriginalWndProc = SetWindowLongPtrA(hWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(pNewWndProc));
-	}
-	
-	void WaitForUninject() {
-		if (UninjectEvent == INVALID_HANDLE_VALUE) {
-			UninjectEvent = OpenEventA(EVENT_ALL_ACCESS, FALSE, "VermilionScrap_UninjectEvent");
-		}
-		
-		WaitForSingleObject(UninjectEvent, INFINITE);
-	}
-	
+    
 	DWORD MainThread(const HMODULE hModule) {
-		SetPresent(HookedPresent);
-		SetWndProc(HookedWndProc);
+		UninjectEvent = CreateEventA(
+			nullptr,
+			TRUE,
+			FALSE,
+			nullptr
+		);
 		
-		// Wait for uninject event (signalled by WndProc)
-		WaitForUninject();
-		
-		// Unhook
-		SetPresent(OriginalPresent);
-		SetWndProc(reinterpret_cast<WNDPROC>(OriginalWndProc));
-		
-		// Sleep to allow the render thread to exit any in-flight calls into our hooks
-		do {
-			Sleep(100);
-		} while (FrameInFlight.load(std::memory_order_acquire));
+		Vermilion::HookOverlay(Render, WndProc);
+		WaitForSingleObject(UninjectEvent, INFINITE);
+		Vermilion::ShutdownOverlay();
 			
-		FreeLibraryAndExitThread(static_cast<HMODULE>(hModule), 0);
+		FreeLibraryAndExitThread(hModule, 0);
 	}
 }
 

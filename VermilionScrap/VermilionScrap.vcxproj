@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Label="Vcpkg">
-    <VcpkgEnabled>false</VcpkgEnabled>
+    <VcpkgEnabled>true</VcpkgEnabled>
     <VcpkgEnableManifest>true</VcpkgEnableManifest>
   </PropertyGroup>
   <PropertyGroup Label="Vcpkg" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -152,11 +152,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\utils\overlay.cpp" />
     <ClCompile Include="src\utils\sig.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\sdk\includes.h" />
     <ClInclude Include="src\sdk\macros.h" />
+    <ClInclude Include="src\sdk\offsets.h" />
     <ClInclude Include="src\sdk\sdk.h" />
+    <ClInclude Include="src\utils\overlay.h" />
     <ClInclude Include="src\utils\sig.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
