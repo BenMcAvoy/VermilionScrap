@@ -1,0 +1,10 @@
+# vs
+.vs
+*.vcxproj.*
+
+# idea
+.idea
+*.DotSettings*
+
+# msbuild
+x64
